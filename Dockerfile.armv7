@@ -1,0 +1,24 @@
+FROM debian:latest
+
+ENV GOMPLATE_VERSION=v3.7.0 \
+    GOMPLATE_BASEURL=https://github.com/hairyhenderson/gomplate/releases/download
+
+ARG TARGETARCH
+
+# Install keepalived
+RUN apt-get update && apt-get install -y file ca-certificates bash coreutils curl net-tools jq keepalived dumb-init bc \
+  && rm -f /etc/keepalived/keepalived.conf \
+  && addgroup --system keepalived_script && adduser --system --ingroup keepalived_script --disabled-login keepalived_script
+
+# Install gomplate
+RUN curl -sL ${GOMPLATE_BASEURL}/${GOMPLATE_VERSION}/gomplate_linux-${TARGETARCH} --output /bin/gomplate \
+  && chmod +x /bin/gomplate
+
+COPY keepalived.conf.tmpl /etc/keepalived/keepalived.conf.tmpl
+COPY vrrp_check.sh /opt/bin/vrrp_check.sh
+
+ENTRYPOINT ["dumb-init", "--", \
+            "/bin/gomplate", "-f", "/etc/keepalived/keepalived.conf.tmpl", "-o", "/etc/keepalived/keepalived.conf", "--" \
+]
+
+CMD [ "/usr/sbin/keepalived", "-l", "-n", "-f", "/etc/keepalived/keepalived.conf" ]
